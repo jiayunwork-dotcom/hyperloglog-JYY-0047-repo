@@ -1,11 +1,5 @@
 package cuckoo
 
-func (b *bucket) swap(slot int, fp uint16) uint16 {
-	old := b[slot]
-	b[slot] = fp
-	return old
-}
-
 // BucketInfo holds diagnostic info about a single bucket.
 type BucketInfo struct {
 	Index    int

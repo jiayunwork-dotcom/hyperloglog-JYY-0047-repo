@@ -4,6 +4,7 @@
 package cuckoo
 
 import (
+	"encoding/binary"
 	"errors"
 	"hash/fnv"
 	"math/rand"
@@ -47,19 +48,19 @@ func (f *Filter) Insert(data []byte) error {
 	i1 := f.index(data)
 	i2 := f.altIndex(i1, fp)
 
-	dest := f.altIndex(i2, fp)
-	if f.buckets[dest].insert(fp) || f.buckets[i1].insert(fp) || f.buckets[i2].insert(fp) {
+	if f.buckets[i1].insert(fp) || f.buckets[i2].insert(fp) {
 		f.count++
 		return nil
 	}
 
-	idx := dest
+	// Kick existing entries.
+	idx := i1
 	if f.rng.Intn(2) == 0 {
-		idx = i1
+		idx = i2
 	}
 	for kick := 0; kick < maxKicks; kick++ {
 		slot := f.rng.Intn(bucketSize)
-		fp = f.buckets[idx].swap(slot, fp)
+		fp, f.buckets[idx][slot] = f.buckets[idx][slot], fp
 		idx = f.altIndex(idx, fp)
 		if f.buckets[idx].insert(fp) {
 			f.count++
@@ -117,7 +118,11 @@ func (f *Filter) index(data []byte) uint {
 }
 
 func (f *Filter) altIndex(i uint, fp uint16) uint {
-	return (i + uint(fp)) % f.numBuckets
+	h := fnv.New64a()
+	var buf [2]byte
+	binary.LittleEndian.PutUint16(buf[:], fp)
+	_, _ = h.Write(buf[:])
+	return (i ^ uint(h.Sum64())) % f.numBuckets
 }
 
 func fingerprint(data []byte) uint16 {
